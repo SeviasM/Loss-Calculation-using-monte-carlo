@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monte Carlo Loan Risk Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0f1a;
+      --bg-secondary: #111827;
+      --bg-card: #1a2332;
+      --text-primary: #f0f4f8;
+      --text-secondary: #94a3b8;
+      --accent: #06b6d4;
+      --accent-glow: rgba(6, 182, 212, 0.3);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: #2d3a4f;
+      --gradient-start: #06b6d4;
+      --gradient-end: #8b5cf6;
+    }
+
+    .light {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --accent: #0891b2;
+      --accent-glow: rgba(8, 145, 178, 0.2);
+      --border: #e2e8f0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .background-pattern {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image:
+        radial-gradient(circle at 20% 20%, var(--accent-glow) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      animation: fadeInDown 0.6s ease-out;
+    }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    h1 {
+      font-size: clamp(1.75rem, 5vw, 2.5rem);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+      .grid {
+        grid-template-columns: 350px 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      animation: fadeInUp 0.6s ease-out;
+      animation-fill-mode: both;
+    }
+
+    .card:nth-child(1) { animation-delay: 0.1s; }
+    .card:nth-child(2) { animation-delay: 0.2s; }
+    .card:nth-child(3) { animation-delay: 0.3s; }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(180deg, var(--gradient-start), var(--gradient-end));
+      border-radius: 2px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    input[type="number"], input[type="file"] {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-size: 16px;
+      font-family: 'IBM Plex Mono', monospace;
+      transition: all 0.2s ease;
+    }
+
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    input[type="file"] {
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    input[type="file"]::file-selector-button {
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Space Grotesk', sans-serif;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+      color: white;
+      box-shadow: 0 4px 15px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px var(--accent-glow);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      margin-top: 10px;
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      transition: transform 0.2s ease;
+    }
+
+    .stat-card:hover {
+      transform: scale(1.02);
+    }
+
+    .stat-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      font-family: 'IBM Plex Mono', monospace;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-bottom: 20px;
+    }
+
+    .chart-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: 8px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .tab-btn:hover:not(.active) {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .sample-data-info {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.1));
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .sample-data-info strong {
+      color: var(--accent);
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 40px;
+      color: var(--text-secondary);
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .loan-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 16px;
+    }
+
+    .loan-table th, .loan-table td {
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .loan-table th {
+      color: var(--text-secondary);
+      font-weight: 500;
+      font-family: 'IBM Plex Mono', monospace;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+
+    .loan-table td {
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .table-container {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .risk-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .risk-low { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .risk-medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .risk-high { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+    .hidden { display: none; }
+
+    @media (max-width: 480px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+      .chart-tabs {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="background-pattern"></div>
+
+  <div class="container">
+    <header>
+      <h1>Monte Carlo Risk Simulator</h1>
+      <p class="subtitle">Loan Portfolio Loss Analysis</p>
+    </header>
+
+    <div class="grid">
+      <!-- Control Panel -->
+      <div class="card">
+        <h2 class="card-title">Configuration</h2>
+
+        <div class="form-group">
+          <label>Number of Simulations</label>
+          <input type="number" id="numSimulations" value="1000" min="10" max="10000">
+        </div>
+
+        <div class="form-group">
+          <label>Upload Loan Data (CSV/Excel)</label>
+          <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+        </div>
+
+        <div class="sample-data-info">
+          <strong>No file?</strong> Click "Use Sample Data" to load a demo portfolio with 20 loans.
+        </div>
+
+        <button class="btn btn-primary" id="runBtn" onclick="runSimulation()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Run Simulation
+        </button>
+
+        <button class="btn btn-secondary" onclick="loadSampleData()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          Use Sample Data
+        </button>
+
+        <!-- Data Preview -->
+        <div id="dataPreview" class="hidden">
+          <h3 class="card-title" style="margin-top: 24px; font-size: 0.95rem;">Loan Portfolio</h3>
+          <div class="table-container">
+            <table class="loan-table">
+              <thead>
+                <tr>
+                  <th>Amount</th>
+                  <th>PD</th>
+                  <th>Recovery</th>
+                  <th>Risk</th>
+                </tr>
+              </thead>
+              <tbody id="loanTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Panel -->
+      <div class="card">
+        <h2 class="card-title">Simulation Results</h2>
+
+        <div id="emptyState" class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 3v18h18"></path>
+            <path d="M18 17V9"></path>
+            <path d="M13 17V5"></path>
+            <path d="M8 17v-3"></path>
+          </svg>
+          <p>Configure parameters and run simulation to see results</p>
+        </div>
+
+        <div id="loadingState" class="loading hidden">
+          <div class="spinner"></div>
+          <span>Running simulations...</span>
+        </div>
+
+        <div id="resultsContainer" class="hidden">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="meanLoss">-</div>
+              <div class="stat-label">Mean Loss</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="medianLoss">-</div>
+              <div class="stat-label">Median Loss</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="var95">-</div>
+              <div class="stat-label">VaR (95%)</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="var99">-</div>
+              <div class="stat-label">VaR (99%)</div>
+            </div>
+          </div>
+
+          <div class="chart-tabs">
+            <button class="tab-btn active" onclick="switchChart('distribution')">Distribution</button>
+            <button class="tab-btn" onclick="switchChart('cumulative')">Cumulative</button>
+            <button class="tab-btn" onclick="switchChart('simulation')">Simulation Path</button>
+          </div>
+
+          <div class="chart-container">
+            <canvas id="mainChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    // Dark mode detection
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      document.documentElement.classList.add('light');
+    }
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', event => {
+      document.documentElement.classList.toggle('light', event.matches);
+    });
+
+    let loanData = [];
+    let simulationResults = [];
+    let mainChart = null;
+    let currentChartType = 'distribution';
+
+    // Sample loan data
+    const sampleLoans = [
+      { Loan_Amount: 50000, Default_Probability: 0.02, Recovery_Rate: 0.4 },
+      { Loan_Amount: 75000, Default_Probability: 0.05, Recovery_Rate: 0.35 },
+      { Loan_Amount: 120000, Default_Probability: 0.03, Recovery_Rate: 0.45 },
+      { Loan_Amount: 30000, Default_Probability: 0.08, Recovery_Rate: 0.3 },
+      { Loan_Amount: 200000, Default_Probability: 0.01, Recovery_Rate: 0.5 },
+      { Loan_Amount: 45000, Default_Probability: 0.06, Recovery_Rate: 0.38 },
+      { Loan_Amount: 90000, Default_Probability: 0.04, Recovery_Rate: 0.42 },
+      { Loan_Amount: 65000, Default_Probability: 0.07, Recovery_Rate: 0.32 },
+      { Loan_Amount: 150000, Default_Probability: 0.02, Recovery_Rate: 0.48 },
+      { Loan_Amount: 35000, Default_Probability: 0.09, Recovery_Rate: 0.28 },
+      { Loan_Amount: 80000, Default_Probability: 0.03, Recovery_Rate: 0.44 },
+      { Loan_Amount: 55000, Default_Probability: 0.05, Recovery_Rate: 0.36 },
+      { Loan_Amount: 110000, Default_Probability: 0.04, Recovery_Rate: 0.4 },
+      { Loan_Amount: 25000, Default_Probability: 0.1, Recovery_Rate: 0.25 },
+      { Loan_Amount: 180000, Default_Probability: 0.015, Recovery_Rate: 0.52 },
+      { Loan_Amount: 42000, Default_Probability: 0.065, Recovery_Rate: 0.34 },
+      { Loan_Amount: 95000, Default_Probability: 0.035, Recovery_Rate: 0.43 },
+      { Loan_Amount: 70000, Default_Probability: 0.055, Recovery_Rate: 0.37 },
+      { Loan_Amount: 130000, Default_Probability: 0.025, Recovery_Rate: 0.46 },
+      { Loan_Amount: 38000, Default_Probability: 0.075, Recovery_Rate: 0.31 }
+    ];
+
+    function loadSampleData() {
+      loanData = [...sampleLoans];
+      renderDataPreview();
+    }
+
+    function renderDataPreview() {
+      const tbody = document.getElementById('loanTableBody');
+      tbody.innerHTML = loanData.map(loan => {
+        const pd = loan.Default_Probability;
+        let riskClass = 'risk-low';
+        let riskText = 'Low';
+        if (pd >= 0.07) { riskClass = 'risk-high'; riskText = 'High'; }
+        else if (pd >= 0.04) { riskClass = 'risk-medium'; riskText = 'Med'; }
+
+        return `
+          <tr>
+            <td>$${loan.Loan_Amount.toLocaleString()}</td>
+            <td>${(pd * 100).toFixed(1)}%</td>
+            <td>${(loan.Recovery_Rate * 100).toFixed(0)}%</td>
+            <td><span class="risk-badge ${riskClass}">${riskText}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('dataPreview').classList.remove('hidden');
+    }
+
+    // File upload handler
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+          // Validate columns
+          const required = ['Loan_Amount', 'Default_Probability', 'Recovery_Rate'];
+          const cols = Object.keys(jsonData[0] || {});
+          const missing = required.filter(r => !cols.includes(r));
+
+          if (missing.length > 0) {
+            showError(`Missing columns: ${missing.join(', ')}`);
+            return;
+          }
+
+          loanData = jsonData;
+          renderDataPreview();
+        } catch (err) {
+          showError('Error reading file: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    function showError(message) {
+      const container = document.getElementById('resultsContainer');
+      container.classList.remove('hidden');
+      document.getElementById('emptyState').classList.add('hidden');
+      container.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: var(--danger);">
+          <p>${message}</p>
+        </div>
+      `;
+    }
+
+    // Monte Carlo simulation
+    function monteCarloSimulation(loans, numSims) {
+      const losses = [];
+
+      for (let i = 0; i < numSims; i++) {
+        let portfolioLoss = 0;
+
+        for (const loan of loans) {
+          if (Math.random() < loan.Default_Probability) {
+            const loss = loan.Loan_Amount * (1 - loan.Recovery_Rate);
+            portfolioLoss += loss;
+          }
+        }
+
+        losses.push(portfolioLoss);
+      }
+
+      return losses;
+    }
+
+    function calculateStats(losses) {
+      const sorted = [...losses].sort((a, b) => a - b);
+      const n = sorted.length;
+
+      const mean = losses.reduce((a, b) => a + b, 0) / n;
+      const median = n % 2 === 0
+        ? (sorted[n/2 - 1] + sorted[n/2]) / 2
+        : sorted[Math.floor(n/2)];
+
+      const var95Index = Math.floor(n * 0.95);
+      const var99Index = Math.floor(n * 0.99);
+
+      return {
+        mean,
+        median,
+        var95: sorted[var95Index],
+        var99: sorted[var99Index],
+        min: sorted[0],
+        max: sorted[n - 1]
+      };
+    }
+
+    function formatCurrency(value) {
+      if (value >= 1000000) return '$' + (value / 1000000).toFixed(2) + 'M';
+      if (value >= 1000) return '$' + (value / 1000).toFixed(1) + 'K';
+      return '$' + value.toFixed(0);
+    }
+
+    async function runSimulation() {
+      if (loanData.length === 0) {
+        showError('Please upload loan data or use sample data first.');
+        return;
+      }
+
+      const numSims = parseInt(document.getElementById('numSimulations').value) || 1000;
+      const runBtn = document.getElementById('runBtn');
+
+      // Show loading state
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('resultsContainer').classList.add('hidden');
+      runBtn.disabled = true;
+
+      // Run simulation with a small delay to allow UI update
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      simulationResults = monteCarloSimulation(loanData, numSims);
+      const stats = calculateStats(simulationResults);
+
+      // Update stats display
+      document.getElementById('meanLoss').textContent = formatCurrency(stats.mean);
+      document.getElementById('medianLoss').textContent = formatCurrency(stats.median);
+      document.getElementById('var95').textContent = formatCurrency(stats.var95);
+      document.getElementById('var99').textContent = formatCurrency(stats.var99);
+
+      // Show results
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('resultsContainer').classList.remove('hidden');
+      runBtn.disabled = false;
+
+      // Draw chart
+      drawChart('distribution');
+    }
+
+    function switchChart(type) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      currentChartType = type;
+      drawChart(type);
+    }
+
+    function drawChart(type) {
+      const ctx = document.getElementById('mainChart').getContext('2d');
+      const isDark = !document.documentElement.classList.contains('light');
+
+      if (mainChart) mainChart.destroy();
+
+      const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+      const textColor = isDark ? '#94a3b8' : '#64748b';
+
+      const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: { color: textColor }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: { color: textColor }
+          }
+        }
+      };
+
+      if (type === 'distribution') {
+        // Create histogram bins
+        const numBins = 30;
+        const sorted = [...simulationResults].sort((a, b) => a - b);
+        const min = sorted[0];
+        const max = sorted[sorted.length - 1];
+        const binWidth = (max - min) / numBins || 1;
+
+        const bins = new Array(numBins).fill(0);
+        const labels = [];
+
+        for (let i = 0; i < numBins; i++) {
+          labels.push(formatCurrency(min + i * binWidth));
+        }
+
+        simulationResults.forEach(val => {
+          const binIndex = Math.min(Math.floor((val - min) / binWidth), numBins - 1);
+          bins[binIndex]++;
+        });
+
+        mainChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{
+              data: bins,
+              backgroundColor: 'rgba(6, 182, 212, 0.6)',
+              borderColor: 'rgba(6, 182, 212, 1)',
+              borderWidth: 1,
+              borderRadius: 4
+            }]
+          },
+          options: {
+            ...commonOptions,
+            scales: {
+              ...commonOptions.scales,
+              x: {
+                ...commonOptions.scales.x,
+                title: { display: true, text: 'Portfolio Loss', color: textColor }
+              },
+              y: {
+                ...commonOptions.scales.y,
+                title: { display: true, text: 'Frequency', color: textColor }
+              }
+            }
+          }
+        });
+      } else if (type === 'cumulative') {
+        const sorted = [...simulationResults].sort((a, b) => a - b);
+        const n = sorted.length;
+        const step = Math.max(1, Math.floor(n / 100));
+
+        const labels = [];
+        const data = [];
+
+        for (let i = 0; i < n; i += step) {
+          labels.push(formatCurrency(sorted[i]));
+          data.push(((i + 1) / n * 100).toFixed(1));
+        }
+
+        mainChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              data,
+              borderColor: 'rgba(139, 92, 246, 1)',
+              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 0
+            }]
+          },
+          options: {
+            ...commonOptions,
+            scales: {
+              ...commonOptions.scales,
+              x: {
+                ...commonOptions.scales.x,
+                title: { display: true, text: 'Portfolio Loss', color: textColor }
+              },
+              y: {
+                ...commonOptions.scales.y,
+                title: { display: true, text: 'Cumulative %', color: textColor },
+                max: 100
+              }
+            }
+          }
+        });
+      } else if (type === 'simulation') {
+        const cumulative = [];
+        let sum = 0;
+        simulationResults.forEach((val, i) => {
+          sum += val;
+          cumulative.push(sum);
+        });
+
+        const step = Math.max(1, Math.floor(simulationResults.length / 200));
+        const labels = [];
+        const data = [];
+
+        for (let i = 0; i < cumulative.length; i += step) {
+          labels.push(i + 1);
+          data.push(cumulative[i]);
+        }
+
+        mainChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              data,
+              borderColor: 'rgba(16, 185, 129, 1)',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              fill: true,
+              tension: 0.1,
+              pointRadius: 0
+            }]
+          },
+          options: {
+            ...commonOptions,
+            scales: {
+              ...commonOptions.scales,
+              x: {
+                ...commonOptions.scales.x,
+                title: { display: true, text: 'Simulation #', color: textColor }
+              },
+              y: {
+                ...commonOptions.scales.y,
+                title: { display: true, text: 'Cumulative Loss', color: textColor },
+                ticks: {
+                  color: textColor,
+                  callback: value => formatCurrency(value)
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>
